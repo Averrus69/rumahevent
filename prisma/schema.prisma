@@ -1,0 +1,137 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums / gak boleh ngasal
+enum roles {
+  ORGANIZER
+  CUSTOMER
+}
+
+enum transaction_statuses {
+  WAITING_FOR_PAYMENT
+  WAITING_FOR_ADMIN_CONFIRMATION
+  DONE
+  REJECTED
+  EXPIRED
+  CANCELED
+}
+
+// Model Definitions
+model users {
+  id             BigInt         @id @default(autoincrement())
+  full_name      String
+  email          String         @unique
+  profile_picture Bytes?         // bytea untuk image
+  password_hash  String
+  role           roles
+  username       String         @unique
+  phone_number   String
+  referral_code  String         @unique
+  referred_by    String?        // yang referral siapa (optional)
+  created_at     DateTime
+  updated_at     DateTime
+  deleted_at     DateTime?      // untuk soft-delete
+
+  // Relations
+  points         points[]        // 1 untuk banyak relasi
+  eventsCreated  events[]        @relation("CreatedEvents")  //1 untuk banyak relasi yang dicreate sama users
+  transactions   transactions[]  // 1 untuk banyak relasi terhadap transaksi
+  @@map("users")
+}
+
+model points {
+  id           BigInt     @id @default(autoincrement())
+  user_id      BigInt
+  amount       Int
+  expired_at   DateTime
+  used_amount  Int
+  created_at   DateTime
+  updated_at   DateTime
+  deleted_at   DateTime?
+
+  // Relations
+  user         users       @relation(fields: [user_id], references: [id])
+  @@map("points")
+}
+
+model events {
+  id            BigInt     @id @default(autoincrement())
+  name          String
+  description   String
+  location      String
+  available_seats Int
+  created_by    BigInt
+  price         Int
+  start_date    DateTime
+  end_date      DateTime
+  created_at    DateTime
+  updated_at    DateTime
+  deleted_at    DateTime?
+
+  // Relations
+  creator       users       @relation("CreatedEvents", fields: [created_by], references: [id])
+  coupons       coupons[]   // onetomany
+  transaction_details transaction_details[] // onetomany
+  @@map("events")
+}
+
+model coupons {
+  id           BigInt     @id @default(autoincrement())
+  code         String
+  event_id     BigInt?
+  discount     Int
+  expired_at   DateTime
+  created_at   DateTime
+  updated_at   DateTime
+  deleted_at   DateTime?
+
+  // Relations
+  event        events?     @relation(fields: [event_id], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  transaction_details transaction_details[] // onetomany
+  @@map("coupons")
+}
+
+model transactions {
+  id           BigInt     @id @default(autoincrement())
+  user_id      BigInt
+  status       transaction_statuses @default(WAITING_FOR_PAYMENT)
+  created_at   DateTime
+  updated_at   DateTime
+  deleted_at   DateTime?
+
+  // Relations
+  user         users       @relation(fields: [user_id], references: [id])
+  transaction_details transaction_details[] // onetomany
+  @@map("transactions")
+}
+
+model transaction_details {
+  id           BigInt     @id @default(autoincrement())
+  transaction_id BigInt
+  event_id     BigInt
+  quantity     Int
+  price        Int
+  coupon_id    BigInt?
+  created_at   DateTime
+  updated_at   DateTime
+  deleted_at   DateTime?
+
+  // Relations
+  transaction  transactions  @relation(fields: [transaction_id], references: [id])
+  event        events        @relation(fields: [event_id], references: [id])
+  coupon       coupons?      @relation(fields: [coupon_id], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  @@map("transactionDetails")
+}
+
