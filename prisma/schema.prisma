@@ -14,12 +14,12 @@ datasource db {
 }
 
 // Enums / gak boleh ngasal
-enum roles {
+enum Role {
   ORGANIZER
   CUSTOMER
 }
 
-enum transaction_statuses {
+enum Transaction_status {
   WAITING_FOR_PAYMENT
   WAITING_FOR_ADMIN_CONFIRMATION
   DONE
@@ -29,13 +29,13 @@ enum transaction_statuses {
 }
 
 // Model Definitions
-model users {
-  id             BigInt         @id @default(autoincrement())
+model User {
+  id             Int         @id @default(autoincrement())
   full_name      String
   email          String         @unique
   profile_picture Bytes?         // bytea untuk image
-  password_hash  String
-  role           roles
+  password       String
+  role           Role
   username       String         @unique
   phone_number   String
   referral_code  String         @unique
@@ -45,15 +45,17 @@ model users {
   deleted_at     DateTime?      // untuk soft-delete
 
   // Relations
-  points         points[]        // 1 untuk banyak relasi
-  eventsCreated  events[]        @relation("CreatedEvents")  //1 untuk banyak relasi yang dicreate sama users
-  transactions   transactions[]  // 1 untuk banyak relasi terhadap transaksi
+  points         Point[]        // 1 untuk banyak relasi
+  transactions   Transaction[]  // 1 untuk banyak relasi terhadap transaksi
+  organizers Organizer?
+  review Review?
+
   @@map("users")
 }
 
-model points {
-  id           BigInt     @id @default(autoincrement())
-  user_id      BigInt
+model Point {
+  id           Int     @id @default(autoincrement())
+  user_id      Int
   amount       Int
   expired_at   DateTime
   used_amount  Int
@@ -62,17 +64,18 @@ model points {
   deleted_at   DateTime?
 
   // Relations
-  user         users       @relation(fields: [user_id], references: [id])
+  user         User       @relation(fields: [user_id], references: [id])
   @@map("points")
 }
 
-model events {
-  id            BigInt     @id @default(autoincrement())
+model Event {
+  id            Int     @id @default(autoincrement())
   name          String
   description   String
   location      String
   available_seats Int
-  created_by    BigInt
+  created_by    Int
+  slug          String    @unique
   price         Int
   start_date    DateTime
   end_date      DateTime
@@ -81,16 +84,18 @@ model events {
   deleted_at    DateTime?
 
   // Relations
-  creator       users       @relation("CreatedEvents", fields: [created_by], references: [id])
-  coupons       coupons[]   // onetomany
-  transaction_details transaction_details[] // onetomany
+  creator       Organizer       @relation("CreatedEvents", fields: [created_by], references: [id])
+  coupons       Coupon[]   // onetomany
+  transactions Transaction[] // onetomany
+  review Review[]
+  category Catagory[]
   @@map("events")
 }
 
-model coupons {
-  id           BigInt     @id @default(autoincrement())
+model Coupon {
+  id           Int     @id @default(autoincrement())
   code         String
-  event_id     BigInt?
+  event_id     Int?
   discount     Int
   expired_at   DateTime
   created_at   DateTime
@@ -98,40 +103,71 @@ model coupons {
   deleted_at   DateTime?
 
   // Relations
-  event        events?     @relation(fields: [event_id], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  transaction_details transaction_details[] // onetomany
+  event        Event?     @relation(fields: [event_id], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  transactions Transaction[] // onetomany
   @@map("coupons")
 }
 
-model transactions {
-  id           BigInt     @id @default(autoincrement())
-  user_id      BigInt
-  status       transaction_statuses @default(WAITING_FOR_PAYMENT)
+model Transaction {
+  id           Int     @id @default(autoincrement())
+  user_id      Int
+  status       Transaction_status @default(WAITING_FOR_PAYMENT)
+  event_id     Int
+  quantity     Int
+  price        Int
+  coupon_id    Int?
   created_at   DateTime
   updated_at   DateTime
   deleted_at   DateTime?
 
   // Relations
-  user         users       @relation(fields: [user_id], references: [id])
-  transaction_details transaction_details[] // onetomany
+  event        Event        @relation(fields: [event_id], references: [id])
+  coupon       Coupon?      @relation(fields: [coupon_id], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  user         User       @relation(fields: [user_id], references: [id])
+
   @@map("transactions")
 }
 
-model transaction_details {
-  id           BigInt     @id @default(autoincrement())
-  transaction_id BigInt
-  event_id     BigInt
-  quantity     Int
-  price        Int
-  coupon_id    BigInt?
-  created_at   DateTime
-  updated_at   DateTime
-  deleted_at   DateTime?
+model Organizer {
+  id            Int @id @default(autoincrement())
+  description   String @db.Text
+  email         String @db.VarChar(255)
+  website       String @db.VarChar(255)
+  instagram     String @db.VarChar(255)
+  banner_image  Bytes?
+  profile_image Bytes?
+  address_line  String @db.Text
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+  deleted_at    DateTime?
 
-  // Relations
-  transaction  transactions  @relation(fields: [transaction_id], references: [id])
-  event        events        @relation(fields: [event_id], references: [id])
-  coupon       coupons?      @relation(fields: [coupon_id], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  @@map("transactionDetails")
+  user_id       Int @unique
+  riview_id     Int
+
+  user User @relation(fields: [user_id],references: [id])
+  eventsCreated  Event[]        @relation("CreatedEvents")
+
+   @@map("organizers")
+  }
+
+model Review {
+    id Int @id @default(autoincrement())
+    description String @db.Text
+    rating Decimal @db.Decimal(2,1)
+    event_id Int 
+    user_id Int @unique
+
+    user User @relation(fields: [user_id],references: [id])
+    event Event @relation(fields: [event_id],references: [id])
+
+  @@map("reviews")
+}
+
+model Catagory {
+  id Int @id @default(autoincrement())
+  catagory_name String @db.VarChar(255)
+  event Event[]
+
+  @@map("catagories")
 }
 
